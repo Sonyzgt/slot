@@ -73,11 +73,16 @@ async function processSpinResult(msg, diceValue) {
 
     // Logika Jackpot: untuk emoji 🎰, 777 (Jackpot) bernilai 64
     if (diceValue === 64) {
+        // Matikan sesi secara otomatis jika ada yang menang
+        isSessionActive = false;
+
         // Kirim pesan ke grup
         let winMsg = `🎉 ${username} MENANG JACKPOT 777!!!`;
         if (msg.prize) winMsg += `\n🎁 Hadiah: ${msg.prize}`;
+        winMsg += `\n\n🛑 *SESI SPIN TELAH BERAKHIR*`;
         
         await bot.sendMessage(chatId, winMsg, {
+            parse_mode: 'Markdown',
             reply_to_message_id: msg.message_id
         });
 
