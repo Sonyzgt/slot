@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bot Slot Controller</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.4);
+            --bg: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --text: #f8fafc;
+            --success: #22c55e;
+            --danger: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.15) 0px, transparent 50%);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 450px;
+            padding: 20px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 8px;
+            font-weight: 700;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            color: #94a3b8;
+            margin-bottom: 40px;
+            font-size: 0.95rem;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 16px;
+            border-radius: 100px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 30px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .status-online {
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        .status-offline {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        /* Toggle Switch Styles */
+        .switch-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 100px;
+            height: 50px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #334155;
+            transition: .4s;
+            border-radius: 50px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 40px;
+            width: 40px;
+            left: 5px;
+            bottom: 5px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary);
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(50px);
+        }
+
+        .label-text {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: #cbd5e1;
+        }
+
+        .footer {
+            margin-top: 40px;
+            font-size: 0.8rem;
+            color: #475569;
+        }
+
+        /* Animation when toggling */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .pulse {
+            animation: pulse 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card" id="mainCard">
+            <div id="statusBadge" class="status-badge status-online">
+                Bot Aktif
+            </div>
+            <h1>Slot Controller</h1>
+            <p class="subtitle">Kontrol status bot Telegram Anda secara real-time</p>
+
+            <div class="switch-container">
+                <label class="switch">
+                    <input type="checkbox" id="botToggle" checked>
+                    <span class="slider"></span>
+                </label>
+                <div class="label-text" id="statusLabel">Sistem ON</div>
+            </div>
+
+            <div class="footer">
+                &copy; 2026 Admin Dashboard • Powered by node-telegram-bot-api
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const botToggle = document.getElementById('botToggle');
+        const statusLabel = document.getElementById('statusLabel');
+        const statusBadge = document.getElementById('statusBadge');
+        const mainCard = document.getElementById('mainCard');
+
+        // Fetch initial status
+        async function fetchStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                updateUI(data.enabled);
+            } catch (err) {
+                console.error('Gagal mengambil status:', err);
+            }
+        }
+
+        function updateUI(enabled) {
+            botToggle.checked = enabled;
+            if (enabled) {
+                statusLabel.innerText = 'Sistem ON';
+                statusLabel.style.color = '#cbd5e1';
+                statusBadge.innerText = 'Bot Aktif';
+                statusBadge.className = 'status-badge status-online';
+            } else {
+                statusLabel.innerText = 'Sistem OFF';
+                statusLabel.style.color = '#ef4444';
+                statusBadge.innerText = 'Bot Nonaktif';
+                statusBadge.className = 'status-badge status-offline';
+            }
+        }
+
+        botToggle.addEventListener('change', async () => {
+            mainCard.classList.add('pulse');
+            setTimeout(() => mainCard.classList.remove('pulse'), 300);
+
+            try {
+                const response = await fetch('/api/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                updateUI(data.enabled);
+            } catch (err) {
+                console.error('Gagal mengubah status:', err);
+                alert('Gagal menghubungi server!');
+                // Revert toggle
+                botToggle.checked = !botToggle.checked;
+            }
+        });
+
+        // Start fetching
+        fetchStatus();
+    </script>
+</body>
+</html>
