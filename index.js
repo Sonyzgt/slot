@@ -194,6 +194,13 @@ async function handleSpin(msg) {
     }
     // --- AKHIR LOGIKA COOLDOWN ---
 
+    // Jawab callback query jika bukan cooldown agar loading stop (tombol tidak berputar terus)
+    if (msg.callback_query_id) {
+        try {
+            await bot.answerCallbackQuery(msg.callback_query_id);
+        } catch (e) {}
+    }
+
     try {
         // Generate Math Question
         const n1 = Math.floor(Math.random() * 10) + 1;
@@ -357,11 +364,6 @@ bot.on('callback_query', async (callbackQuery) => {
         // Ambil prize dari callback data jika ada (format: spin_action:prize)
         const prizeAttr = data.split(':')[1] || '';
         if (prizeAttr) customMsg.prize = prizeAttr;
-
-        try {
-            await bot.answerCallbackQuery(callbackQuery.id);
-        } catch (error) {
-        }
 
         await handleSpin(customMsg);
     }
