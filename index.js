@@ -1,5 +1,6 @@
 require('dotenv').config();
 const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
 
@@ -31,8 +32,27 @@ process.on('uncaughtException', () => {});
 // Status Bot (On/Off)
 let isBotEnabled = true;
 
-// Status Sesi Spin Aktif (On/Off)
-let isSessionActive = false;
+const SESSION_FILE = path.join(__dirname, 'session_state.json');
+
+// Helper untuk persistence
+function saveSessionState(state) {
+    try {
+        fs.writeFileSync(SESSION_FILE, JSON.stringify({ isSessionActive: state }));
+    } catch (err) {}
+}
+
+function loadSessionState() {
+    try {
+        if (fs.existsSync(SESSION_FILE)) {
+            const data = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8'));
+            return data.isSessionActive || false;
+        }
+    } catch (err) {}
+    return false;
+}
+
+// Status Sesi Spin Aktif (Telah di-load dari disk agar awet saat restart)
+let isSessionActive = loadSessionState();
 
 // Map untuk menyimpan pertanyaan matematika yang tertunda (messageId => { userId, answer, prize })
 const pendingQuestions = new Map();
@@ -75,6 +95,7 @@ async function processSpinResult(msg, diceValue) {
     if (diceValue === 64) {
         // Matikan sesi secara otomatis jika ada yang menang
         isSessionActive = false;
+        saveSessionState(false);
 
         // Kirim pesan ke grup
         let winMsg = `🎉 ${username} MENANG JACKPOT 777!!!`;
@@ -89,7 +110,7 @@ async function processSpinResult(msg, diceValue) {
         // Kirim pesan pribadi ke Owner (jika ownerId ada)
         if (ownerId) {
             try {
-                const winnerInfo = `🎰 JACKPOT DETECTED!\n\nPemenang: ${username}\nID: ${user.id}\nNama: ${user.first_name} ${user.last_name || ''}\nGroup: ${msg.chat.title || 'Grup'}\n🎁 Hadiah: ${msg.prize || '-'}`;
+                const winnerInfo = `🎰 JACKPOT DETECTED!\n\nPemenang: ${username}\nID: ${user.id}\nNama: ${user.first_name} ${user.last_name || ''}\nGroup: ${msg.chat.title || 'Grup'}\n🎁 Hadiah: ${msg.prize || '-'}\n🎲 Hasil Dadu: ${diceValue}`;
                 await bot.sendMessage(ownerId, winnerInfo);
             } catch (err) {
                 // Biasanya ini terjadi jika Owner belum memulai chat dengan bot
@@ -243,6 +264,7 @@ bot.on('message', async (msg) => {
 
         // Aktifkan sesi spin
         isSessionActive = true;
+        saveSessionState(true);
 
         // Jalankan Spin pertama (Dice + Tombol) secara langsung
         executeSpin(chatId, msg.from, prize);
@@ -264,6 +286,7 @@ bot.on('message', async (msg) => {
 
         // Matikan sesi secara global
         isSessionActive = false;
+        saveSessionState(false);
 
         if (msg.reply_to_message) {
             try {
