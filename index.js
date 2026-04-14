@@ -57,6 +57,10 @@ let isSessionActive = loadSessionState();
 // Map untuk menyimpan pertanyaan matematika yang tertunda (messageId => { userId, answer, prize })
 const pendingQuestions = new Map();
 
+// Map untuk menyimpan cooldown spin per user (userId => timestamp)
+const userCooldowns = new Map();
+const SPIN_COOLDOWN = 10000; // 10 detik
+
 // Inisialisasi Express
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -156,6 +160,9 @@ async function executeSpin(chatId, user, prize, replyToMessageId) {
         // Proses hasil jackpotnya
         await processSpinResult(pseudoMsg, diceMsg.dice.value);
 
+        // Set cooldown setelah spin sukses
+        userCooldowns.set(user.id, Date.now());
+
     } catch (error) {
     }
 }
@@ -169,6 +176,23 @@ async function handleSpin(msg) {
     // Cek status On/Off
     if (!isBotEnabled || !isSessionActive) return;
 
+    // --- LOGIKA COOLDOWN ---
+    const now = Date.now();
+    const lastSpin = userCooldowns.get(userId) || 0;
+    const remainingTime = Math.ceil((SPIN_COOLDOWN - (now - lastSpin)) / 1000);
+
+    if (remainingTime > 0) {
+        const cooldownMsg = `⏳ Tunggu ${remainingTime} detik lagi untuk spin kembali!`;
+        if (msg.callback_query_id) {
+            try {
+                return await bot.answerCallbackQuery(msg.callback_query_id, { text: cooldownMsg, show_alert: true });
+            } catch (e) {}
+            return;
+        } else {
+            return bot.sendMessage(chatId, cooldownMsg, { reply_to_message_id: msg.message_id });
+        }
+    }
+    // --- AKHIR LOGIKA COOLDOWN ---
 
     try {
         // Generate Math Question
@@ -313,7 +337,8 @@ bot.on('callback_query', async (callbackQuery) => {
 
     const customMsg = {
         ...msg,
-        from: user
+        from: user,
+        callback_query_id: callbackQuery.id
     };
 
     const data = callbackQuery.data;
