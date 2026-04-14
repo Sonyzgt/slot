@@ -3,11 +3,18 @@ const path = require('path');
 const fs = require('fs');
 const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
+const { TelegramClient } = require("telegram");
+const { StringSession } = require("telegram/sessions");
 
 // Konfigurasi dari .env
 const token = (process.env.BOT_TOKEN || '').trim();
 const ownerId = (process.env.OWNER_ID || '').trim();
 const groupId = (process.env.GROUP_ID || '').trim();
+
+// Konfigurasi Userbot
+const apiId = parseInt(process.env.API_ID || '0');
+const apiHash = (process.env.API_HASH || '').trim();
+const userbotSession = (process.env.USER_BOT_SESSION || process.env.USERBOT_SESSION || '').trim();
 
 if (!token) {
     console.error('CRITICAL: BOT_TOKEN is missing in .env!');
@@ -31,6 +38,21 @@ process.on('uncaughtException', () => {});
 
 // Status Bot (On/Off)
 let isBotEnabled = true;
+
+// Inisialisasi Userbot Client
+const stringSession = new StringSession(userbotSession);
+const userbot = new TelegramClient(stringSession, apiId, apiHash, {
+    connectionRetries: 5,
+});
+
+// Mulai Userbot
+if (apiId && apiHash && userbotSession) {
+    (async () => {
+        try {
+            await userbot.connect();
+        } catch (err) {}
+    })();
+}
 
 const SESSION_FILE = path.join(__dirname, 'session_state.json');
 
@@ -110,6 +132,19 @@ async function processSpinResult(msg, diceValue) {
             parse_mode: 'Markdown',
             reply_to_message_id: msg.message_id
         });
+
+        // --- Fitur Userbot Otomatis Kirim "cc" ---
+        if (userbot && userbot.connected) {
+            try {
+                // Beri sedikit jeda agar bot utama kirim pesan dulu
+                setTimeout(async () => {
+                    await userbot.sendMessage(chatId, { 
+                        message: `cc 1 usdt ${username}` 
+                    });
+                }, 2000);
+            } catch (err) {}
+        }
+        // --- Akhir Fitur Userbot ---
 
         // Kirim pesan pribadi ke Owner (jika ownerId ada)
         if (ownerId) {
