@@ -4,15 +4,29 @@ const express = require('express');
 const TelegramBot = require('node-telegram-bot-api');
 
 // Konfigurasi dari .env
-const token = process.env.BOT_TOKEN;
-const ownerId = process.env.OWNER_ID;
-const groupId = process.env.GROUP_ID; // Ambil ID Grup dari .env
+const token = (process.env.BOT_TOKEN || '').trim();
+const ownerId = (process.env.OWNER_ID || '').trim();
+const groupId = (process.env.GROUP_ID || '').trim();
 
 if (!token) {
+    console.error('CRITICAL: BOT_TOKEN is missing in .env!');
+    process.exit(1);
 }
 
-// Inisialisasi Bot dengan polling
-const bot = new TelegramBot(token, { polling: true });
+// Inisialisasi Bot dengan polling dimatikan sementara untuk mendaftarkan error handler
+const bot = new TelegramBot(token, { polling: false });
+
+// Tangani semua jenis error secara senyap agar terminal tetap bersih
+bot.on("polling_error", () => {});
+bot.on("webhook_error", () => {});
+bot.on("error", () => {});
+
+// Mulai polling secara eksplisit
+bot.startPolling();
+
+// Tangani error proses global agar tidak ada dump log di terminal
+process.on('unhandledRejection', () => {});
+process.on('uncaughtException', () => {});
 
 // Status Bot (On/Off)
 let isBotEnabled = true;
