@@ -32,9 +32,13 @@ bot.on("error", () => {});
 // Mulai polling secara eksplisit
 bot.startPolling();
 
-// Tangani error proses global agar tidak ada dump log di terminal
-process.on('unhandledRejection', () => {});
-process.on('uncaughtException', () => {});
+// Tangani error proses global (DIUBAH UNTUK DEBUGGING)
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+});
 
 // Status Bot (On/Off)
 let isBotEnabled = true;
@@ -49,8 +53,14 @@ const userbot = new TelegramClient(stringSession, apiId, apiHash, {
 if (apiId && apiHash && userbotSession) {
     (async () => {
         try {
+            console.log("Menghubungkan ke Userbot...");
             await userbot.connect();
-        } catch (err) {}
+            console.log("Userbot Terhubung!");
+            if (ownerId) bot.sendMessage(ownerId, "✅ Userbot berhasil terhubung!");
+        } catch (err) {
+            console.error("Gagal menghubungkan Userbot:", err);
+            if (ownerId) bot.sendMessage(ownerId, "❌ Gagal menghubungkan Userbot: " + err.message);
+        }
     })();
 }
 
@@ -407,4 +417,8 @@ bot.on('callback_query', async (callbackQuery) => {
 
 
 // --- Selesai ---
+console.log("Bot sedang berjalan...");
+if (ownerId) {
+    bot.sendMessage(ownerId, "🤖 Bot Slot telah aktif dan berjalan! Silakan coba ketik /id atau /spin.").catch(() => {});
+}
 
