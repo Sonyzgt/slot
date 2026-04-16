@@ -197,6 +197,25 @@
                 &copy; 2026 Admin Dashboard • Powered by node-telegram-bot-api
             </div>
         </div>
+
+        <!-- ID Management Card -->
+        <div class="card" style="margin-top: 24px; text-align: left; padding: 30px;">
+            <h2 style="font-size: 1.25rem; margin-bottom: 20px; color: #818cf8;">Manajemen Admin ID</h2>
+            
+            <div id="ownersList" style="margin-bottom: 20px;">
+                <!-- ID list will be populated here -->
+                <div style="color: #64748b; font-size: 0.9rem;">Memuat daftar ID...</div>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="newIdInput" placeholder="Masukkan ID Telegram" 
+                    style="flex: 1; background: rgba(15, 23, 42, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 12px; color: white; outline: none;">
+                <button id="addIdBtn" 
+                    style="background: var(--primary); border: none; border-radius: 12px; padding: 0 20px; color: white; font-weight: 600; cursor: pointer; transition: 0.2s;">
+                    Tambah
+                </button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -204,8 +223,17 @@
         const statusLabel = document.getElementById('statusLabel');
         const statusBadge = document.getElementById('statusBadge');
         const mainCard = document.getElementById('mainCard');
+        
+        const ownersList = document.getElementById('ownersList');
+        const newIdInput = document.getElementById('newIdInput');
+        const addIdBtn = document.getElementById('addIdBtn');
 
-        // Fetch initial status
+        // Fetch initial status and owners
+        async function init() {
+            fetchStatus();
+            fetchOwners();
+        }
+
         async function fetchStatus() {
             try {
                 const response = await fetch('/api/status');
@@ -215,6 +243,85 @@
                 console.error('Gagal mengambil status:', err);
             }
         }
+
+        async function fetchOwners() {
+            try {
+                const response = await fetch('/api/owners');
+                const data = await response.json();
+                renderOwners(data.owners);
+            } catch (err) {
+                console.error('Gagal mengambil daftar owner:', err);
+                ownersList.innerHTML = '<div style="color: #ef4444;">Gagal memuat daftar ID</div>';
+            }
+        }
+
+        function renderOwners(owners) {
+            if (!owners || owners.length === 0) {
+                ownersList.innerHTML = '<div style="color: #64748b; font-size: 0.9rem;">Belum ada ID admin tambahan.</div>';
+                return;
+            }
+
+            ownersList.innerHTML = owners.map((id, index) => `
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.05); padding: 10px 15px; border-radius: 12px; margin-bottom: 8px;">
+                    <div style="font-family: monospace; color: #e2e8f0;">${id} ${index === 0 ? '<span style="color: #818cf8; font-size: 0.7rem; margin-left: 8px;">(Primary)</span>' : ''}</div>
+                    ${index !== 0 ? `
+                        <button onclick="deleteOwner('${id}')" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444; border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 0.8rem;">
+                            Hapus
+                        </button>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        async function deleteOwner(id) {
+            if (!confirm(`Hapus ID ${id} dari daftar admin?`)) return;
+
+            try {
+                const response = await fetch(\`/api/owners/\${id}\`, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.success) {
+                    renderOwners(data.owners);
+                } else {
+                    alert('Gagal menghapus ID');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan');
+            }
+        }
+
+        addIdBtn.addEventListener('click', async () => {
+            const id = newIdInput.value.trim();
+            if (!id) return;
+            if (!/^\d+$/.test(id)) {
+                alert('ID harus berupa angka');
+                return;
+            }
+
+            addIdBtn.disabled = true;
+            addIdBtn.innerText = '...';
+
+            try {
+                const response = await fetch('/api/owners', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    newIdInput.value = '';
+                    renderOwners(data.owners);
+                } else {
+                    alert(data.error || 'Gagal menambah ID');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan');
+            } finally {
+                addIdBtn.disabled = false;
+                addIdBtn.innerText = 'Tambah';
+            }
+        });
 
         function updateUI(enabled) {
             botToggle.checked = enabled;
@@ -250,8 +357,8 @@
             }
         });
 
-        // Start fetching
-        fetchStatus();
+        // Start initialization
+        init();
     </script>
 </body>
 </html>

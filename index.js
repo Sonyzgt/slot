@@ -71,7 +71,16 @@ const SESSION_FILE = path.join(__dirname, 'session_state.json');
 // Helper untuk persistence
 function saveSessionState(state) {
     try {
-        fs.writeFileSync(SESSION_FILE, JSON.stringify({ isSessionActive: state }));
+        const data = {};
+        if (fs.existsSync(SESSION_FILE)) {
+            try {
+                const existing = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8'));
+                Object.assign(data, existing);
+            } catch (e) {}
+        }
+        data.isSessionActive = state;
+        data.ccPayload = ccPayload;
+        fs.writeFileSync(SESSION_FILE, JSON.stringify(data, null, 2));
     } catch (err) {}
 }
 
@@ -79,11 +88,15 @@ function loadSessionState() {
     try {
         if (fs.existsSync(SESSION_FILE)) {
             const data = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8'));
+            if (data.ccPayload) ccPayload = data.ccPayload;
             return data.isSessionActive || false;
         }
     } catch (err) {}
     return false;
 }
+
+// Global CC Payload (Default: 1 usdt)
+let ccPayload = "1 usdt";
 
 // Status Sesi Spin Aktif (Telah di-load dari disk agar awet saat restart)
 let isSessionActive = loadSessionState();
@@ -93,7 +106,7 @@ const pendingQuestions = new Map();
 
 // Map untuk menyimpan cooldown spin per user (userId => timestamp)
 const userCooldowns = new Map();
-const SPIN_COOLDOWN = 10000; // 10 detik
+const SPIN_COOLDOWN = 3000; // 3 detik
 
 // Inisialisasi Express
 const app = express();
@@ -115,6 +128,77 @@ app.post('/api/toggle', (req, res) => {
 
 // Jalankan server
 app.listen(PORT, () => {
+});
+
+// --- API UNTUK MANAJEMEN ID TELEGRAM ---
+
+/**
+ * Helper untuk mengupdate OWNER_ID di .env secara aman
+ */
+function updateEnvOwnerIds(newIds) {
+    try {
+        const envPath = path.join(__dirname, '.env');
+        let envContent = fs.readFileSync(envPath, 'utf8');
+        
+        const ownerIdLine = `OWNER_ID=${newIds.join(',')}`;
+        
+        if (envContent.includes('OWNER_ID=')) {
+            envContent = envContent.replace(/OWNER_ID=.*/, ownerIdLine);
+        } else {
+            envContent += `\n${ownerIdLine}`;
+        }
+        
+        fs.writeFileSync(envPath, envContent);
+        return true;
+    } catch (err) {
+        console.error("Gagal update .env:", err);
+        return false;
+    }
+}
+
+// Endpoint untuk mengambil semua ID owner
+app.get('/api/owners', (req, res) => {
+    res.json({ owners: ownerIds });
+});
+
+// Endpoint untuk menambah ID owner baru
+app.post('/api/owners', (req, res) => {
+    const { id } = req.body;
+    if (!id || typeof id !== 'string') {
+        return res.status(400).json({ error: 'ID tidak valid' });
+    }
+
+    if (!ownerIds.includes(id)) {
+        ownerIds.push(id);
+        if (updateEnvOwnerIds(ownerIds)) {
+            // Update primary ownerId for notifications if it was empty
+            if (ownerIds.length === 1) {
+                global.ownerId = ownerIds[0];
+            }
+            res.json({ success: true, owners: ownerIds });
+        } else {
+            res.status(500).json({ error: 'Gagal menyimpan ke .env' });
+        }
+    } else {
+        res.json({ success: true, owners: ownerIds, message: 'ID sudah ada' });
+    }
+});
+
+// Endpoint untuk menghapus ID owner
+app.delete('/api/owners/:id', (req, res) => {
+    const targetId = req.params.id;
+    const index = ownerIds.indexOf(targetId);
+    
+    if (index > -1) {
+        ownerIds.splice(index, 1);
+        if (updateEnvOwnerIds(ownerIds)) {
+            res.json({ success: true, owners: ownerIds });
+        } else {
+            res.status(500).json({ error: 'Gagal menyimpan ke .env' });
+        }
+    } else {
+        res.status(404).json({ error: 'ID tidak ditemukan' });
+    }
 });
 
 
@@ -151,7 +235,7 @@ async function processSpinResult(msg, diceValue) {
                 // Beri sedikit jeda agar bot utama kirim pesan dulu
                 setTimeout(async () => {
                     await userbot.sendMessage(chatId, { 
-                        message: `cc 1 usdt ${username}` 
+                        message: `cc ${ccPayload} ${username}` 
                     });
                 }, 2000);
             } catch (err) {}
@@ -325,6 +409,41 @@ bot.on('message', async (msg) => {
 
     // Abaikan dice manual
     if (msg.dice && msg.dice.emoji === '🎰') return;
+
+    // Handle command /checkcc
+    if (text === '/checkcc') {
+        if (ownerIds.length > 0 && !ownerIds.includes(msg.from.id.toString())) {
+            return;
+        }
+        
+        if (userbot && userbot.connected) {
+            await bot.sendMessage(chatId, "Bentar, lagi cek balance...");
+            try {
+                await userbot.sendMessage(chatId, { message: "balance" });
+            } catch (err) {
+                await bot.sendMessage(chatId, "Gagal kirim balance via userbot: " + err.message);
+            }
+            return;
+        } else {
+            return bot.sendMessage(chatId, "Userbot belum terhubung!");
+        }
+    }
+
+    // Handle command /setcc
+    if (text.startsWith('/setcc')) {
+        if (ownerIds.length > 0 && !ownerIds.includes(msg.from.id.toString())) {
+            return;
+        }
+
+        const args = text.split(' ').slice(1);
+        if (args.length === 0) {
+            return bot.sendMessage(chatId, `Cara pakai: \`/setcc 0.4 usdt\`\nPayload saat ini: \`${ccPayload}\``, { parse_mode: 'Markdown' });
+        }
+
+        ccPayload = args.join(' ');
+        saveSessionState(isSessionActive);
+        return bot.sendMessage(chatId, `✅ CC Payload berhasil diubah menjadi: \`${ccPayload}\``, { parse_mode: 'Markdown' });
+    }
 
     // Handle command /spin
     if (text.startsWith('/spin')) {
