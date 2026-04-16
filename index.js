@@ -8,7 +8,9 @@ const { StringSession } = require("telegram/sessions");
 
 // Konfigurasi dari .env
 const token = (process.env.BOT_TOKEN || '').trim();
-const ownerId = (process.env.OWNER_ID || '').trim();
+// OWNER_ID bisa berupa satu ID atau beberapa ID dipisah koma (contoh: 123,456)
+const ownerIds = (process.env.OWNER_ID || '').split(',').map(id => id.trim()).filter(id => id !== '');
+const ownerId = ownerIds[0] || ''; // ID utama untuk notifikasi admin
 const groupId = (process.env.GROUP_ID || '').trim();
 
 // Konfigurasi Userbot
@@ -327,7 +329,7 @@ bot.on('message', async (msg) => {
     // Handle command /spin
     if (text.startsWith('/spin')) {
         // Cek owner (Hanya owner yang bisa memulai session /spin)
-        if (ownerId && msg.from.id.toString() !== ownerId.toString()) {
+        if (ownerIds.length > 0 && !ownerIds.includes(msg.from.id.toString())) {
             return;
         }
 
@@ -348,7 +350,7 @@ bot.on('message', async (msg) => {
     // Handle teks "SPIN 🎰"
     else if (text.includes('SPIN 🎰')) {
         // Cek owner
-        if (ownerId && msg.from.id.toString() !== ownerId.toString()) {
+        if (ownerIds.length > 0 && !ownerIds.includes(msg.from.id.toString())) {
             return;
         }
         handleSpin(msg);
@@ -356,7 +358,7 @@ bot.on('message', async (msg) => {
     // Handle command /endspin
     else if (text.startsWith('/endspin')) {
         // Cek owner
-        if (ownerId && msg.from.id.toString() !== ownerId.toString()) {
+        if (ownerIds.length > 0 && !ownerIds.includes(msg.from.id.toString())) {
             return;
         }
 
